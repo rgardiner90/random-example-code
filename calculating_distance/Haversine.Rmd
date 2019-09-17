@@ -1,0 +1,115 @@
+---
+title: "lat and long"
+author: "Richard G. Gardiner"
+date: "May 13, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+## Haversine Formula (as the Crow Flies)
+
+Uses the paper "Virtues of the Haversine", sky and Telescope Volume 68, no. 2, 1984, page 150 by R W. Sinott
+
+formulas:
+
+- dlon = longitude2 - longitude 1
+- dlat = lat2 - lat1
+- a = (sin(dlat/2))^2 + cos(lat1) * cos(lat2) * sin(dlon/2))^2
+- c = 2* atan2(sqrt(a), sqrt(1-a))
+- d = R * c
+
+```{r}
+library(pracma)
+library(tidyverse)
+library(readxl)
+```
+
+Testing the haversine for two random locations and then comparing with google:
+```{r}
+albany <- c(29.93601, -77.0889) # location for albany
+arizona <- c(33.41772, -111.934) # location for arizona
+
+distance <- haversine(albany, arizona) # how you actually run this
+
+distance * 0.621371 # converts to miles
+```
+
+2053.416 miles is the distance between the albany and arizona schools.
+
+
+
+```{r}
+FRA <- c(50.0379, 8.5622) # frankfurt airport
+ORD <- c(41.9742, -87.9073) # O-Haire
+
+dis <- haversine(FRA, ORD) 
+
+dis * 0.621371 # converting to miles
+```
+
+4331.437 miles
+
+
+Initial testing appears to be pretty good. It give me the distance in kilometers, which I can easily change to miles
+
+
+## Writing my own function
+
+It would appear that the haversine formula is having trouble understand my dataset, so I decided to try to take the formula from online and apply it here.  Each step basically follows the haversine function that is from the `pracma` package.  
+
+```{r}
+haversine_r <- function(lon1, lat1, lon2, lat2){
+    # convert decimal degrees to radians
+    lon1 <- lon1 * pi / 180
+    lon2 <- lon2 * pi / 180
+    lat1 <- lat1 * pi / 180
+    lat2 <- lat2 * pi / 180
+    # haversine formula
+    dlon <- lon2 - lon1
+    dlat <- lat2 - lat1
+    a <- sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon/2) ** 2
+    c <- 2 * atan2(sqrt(a), sqrt(1 - a))
+    km <- 6367 * c
+    miles <- km * 0.621371
+    miles
+}
+```
+
+
+Now I want to plug in the coordinates from the Frankfurt and O'Haire example and see how the formula worked
+```{r}
+haversine_r(8.5622, 50.0379, -87.9073, 41.9742)
+```
+
+The initial formula gives me roughly the same distance within a few miles.  My estimate is 3 miles off from the other one.  Within reason given that the total distance is a little more than 4300 miles. That makes me off by `r (3 / 4328.718) * 100` percent.
+
+## Haversine over a DataFrame
+
+Now I am going to read in a test dataset that is a subset of our larger dataset we will be using.
+```{r}
+test_dataset <- read_excel("haversine example.xlsx") 
+
+str(test_dataset)
+```
+
+
+here I am running my function with and adding the results as a column in my dataframe. 
+
+```{r}
+test_of_function <- test_dataset %>%
+  mutate(miles = round(haversine_r(test_dataset$destination_long, 
+                                   test_dataset$destination_lat,
+                                   test_dataset$atl_long, 
+                                   test_dataset$atl_lat), 2))
+```
+I decided to round this to two spots just to make this all easier to read.
+
+```{r}
+DT::datatable(test_of_function)
+```
+
